@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Callback Test - S Pay Mall</title>
+    <link rel="stylesheet" href="css/test-callback.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Payment Callback Test</h1>
+            <p class="subtitle">Manually trigger Alipay transaction query callback</p>
+        </div>
+        
+        <div class="test-form">
+            <div class="input-group">
+                <label for="outTradeNo">Merchant Order Number</label>
+                <input type="text" id="outTradeNo" placeholder="Please enter merchant order number" required>
+                <span class="input-hint">Example: 571486993823</span>
+            </div>
+            
+            <button type="button" id="testBtn" class="test-btn">
+                <span class="btn-text">Initiate Test Callback</span>
+                <span class="loading" style="display: none;">Processing...</span>
+            </button>
+        </div>
+        
+        <div class="result-section" id="resultSection" style="display: none;">
+            <h3>Test Result</h3>
+            <div class="result-content" id="resultContent"></div>
+        </div>
+        
+        <div class="info-section">
+            <h3>Instructions</h3>
+            <ul>
+                <li>Enter valid merchant order number</li>
+                <li>Click "Initiate Test Callback" button</li>
+                <li>System will call Alipay API to query transaction status</li>
+                <li>If transaction succeeds, order status will be auto-updated</li>
+            </ul>
+        </div>
+        
+        <div class="navigation">
+            <a href="index.html" class="nav-btn">Back to Home</a>
+            <a href="order-list.html" class="nav-btn">View Orders</a>
+        </div>
+    </div>
+    
+    <script src="js/common.js"></script>
+    <script src="js/test-callback.js"></script>
+</body>
+</html>

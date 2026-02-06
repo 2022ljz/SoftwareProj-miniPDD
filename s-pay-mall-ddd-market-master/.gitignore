@@ -36,9 +36,10 @@ build/
 
 ### Mac OS ###
 .DS_Store
-/group-buy-market-app/data/
 /data/
 /.idea/
+/s-pay-mall-app/data/
+/s-pay-mall-ddd-app/data/
 
 
 # ======================
@@ -49,4 +50,3 @@ logs/
 log/
 **/logs/
 **/log/
-

@@ -1,0 +1,35 @@
+# 使用Maven构建镜像（多阶段构建）
+FROM maven:3.8.4-openjdk-8 AS builder
+
+# 设置工作目录
+WORKDIR /build
+
+# 复制项目文件
+COPY pom.xml .
+COPY s-pay-mall-ddd-api ./s-pay-mall-ddd-api
+COPY s-pay-mall-ddd-app ./s-pay-mall-ddd-app
+COPY s-pay-mall-ddd-domain ./s-pay-mall-ddd-domain
+COPY s-pay-mall-ddd-infrastructure ./s-pay-mall-ddd-infrastructure
+COPY s-pay-mall-ddd-trigger ./s-pay-mall-ddd-trigger
+COPY s-pay-mall-ddd-types ./s-pay-mall-ddd-types
+
+# 使用Maven构建项目
+RUN mvn clean package -DskipTests -Dmaven.test.skip=true
+
+# 运行阶段
+FROM eclipse-temurin:8-jre
+
+# 作者
+MAINTAINER xiaofuge
+
+# 配置
+ENV PARAMS=""
+
+# 时区
+ENV TZ=PRC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# 从构建阶段复制jar文件
+COPY --from=builder /build/s-pay-mall-ddd-app/target/s-pay-mall-ddd-app.jar /s-pay-mall-ddd-app.jar
+
+ENTRYPOINT ["sh","-c","java -jar $JAVA_OPTS /s-pay-mall-ddd-app.jar $PARAMS"]

@@ -1,0 +1,112 @@
+server:
+  port: ${SERVER_PORT:8091}
+  tomcat:
+    mbeanregistry:
+      enabled: true
+    max-connections: 20
+    threads:
+      max: 20
+      min-spare: 10
+    accept-count: 10
+
+# 线程池配置
+thread:
+  pool:
+    executor:
+      config:
+        core-pool-size: 20
+        max-pool-size: 50
+        keep-alive-time: 5000
+        block-queue-size: 5000
+        policy: CallerRunsPolicy
+
+# 数据库配置
+spring:
+  datasource:
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:123456}
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://mysql:3306/group_buy_market?useUnicode=true&characterEncoding=utf8&autoReconnect=true&serverTimezone=Asia/Shanghai}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    type: com.zaxxer.hikari.HikariDataSource
+    hikari:
+      pool-name: Retail_HikariCP
+      minimum-idle: 15
+      idle-timeout: 180000
+      maximum-pool-size: 25
+      auto-commit: true
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      connection-test-query: SELECT 1
+  # RabbitMQ
+  rabbitmq:
+    addresses: ${SPRING_RABBITMQ_ADDRESSES:rabbitmq}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:admin}
+    password: ${SPRING_RABBITMQ_PASSWORD:admin}
+    listener:
+      simple:
+        prefetch: 1
+    template:
+      delivery-mode: persistent
+    # 消息配置
+    config:
+      # 生产者
+      producer:
+        exchange: group_buy_market_exchange
+        topic_team_success:
+          routing_key: topic.team_success
+          queue: group_buy_market_queue_2_topic_team_success
+        topic_team_refund:
+          routing_key: topic.team_refund
+          queue: group_buy_market_queue_2_topic_team_refund
+
+# MyBatis 配置
+mybatis:
+  mapper-locations: classpath:/mybatis/mapper/*.xml
+  config-location:  classpath:/mybatis/config/mybatis-config.xml
+
+# Redis
+redis:
+  sdk:
+    config:
+      host: ${REDIS_SDK_CONFIG_HOST:redis}
+      port: ${REDIS_SDK_CONFIG_PORT:6379}
+      pool-size: 10
+      min-idle-size: 5
+      idle-timeout: 30000
+      connect-timeout: 5000
+      retry-attempts: 3
+      retry-interval: 1000
+      ping-interval: 60000
+      keep-alive: true
+
+# 扳手工程；通用配置组件
+xfg:
+  wrench:
+    config:
+      system: group-buy-market
+      register:
+        host: ${REDIS_SDK_CONFIG_HOST:redis}
+        port: ${REDIS_SDK_CONFIG_PORT:6379}
+
+# 监控配置 Prometheus + Grafana
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  prometheus:
+    enabled: true
+
+# 日志
+logging:
+  level:
+    root: info
+  config: classpath:logback-spring.xml

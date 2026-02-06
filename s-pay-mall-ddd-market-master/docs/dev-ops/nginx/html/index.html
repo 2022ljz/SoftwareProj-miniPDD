@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XiaoFuGe - Group Buy Project - Product Details</title>
+    <link rel="stylesheet" href="css/index.css">
+
+</head>
+<body>
+<!-- Carousel -->
+<div class="swiper-container">
+    <div class="swiper-wrapper">
+        <div class="swiper-slide"><img src="./images/sku-13811216-01.png"></div>
+        <div class="swiper-slide"><img src="./images/sku-13811216-02.png"></div>
+        <div class="swiper-slide"><img src="./images/sku-13811216-03.png"></div>
+    </div>
+    <div class="swiper-pagination"></div>
+</div>
+
+<!-- Product info -->
+<div class="product-info">
+    <h1 class="product-title">POPMART-CHAKA Candle Whisper Series Blind Box</h1>
+    <span class="promotion-tag">Promotion</span>
+    <span class="promotion-text"></span> <!-- Dynamically filled promotion text -->
+</div>
+
+<!-- Group list container -->
+<div class="group-list">
+    <!-- Dynamically generated group list -->
+</div>
+
+<!-- Blank area -->
+<div class="area"></div>
+
+<!-- Bottom action bar -->
+<div class="action-bar">
+    <button class="action-btn buy-alone"></button>
+    <button class="action-btn group-buy"></button>
+    <button class="action-btn order-list-btn" onclick="window.location.href='order-list.html'">My Orders</button>
+    <button class="action-btn test-callback-btn" onclick="window.location.href='test-callback.html'">"Backdoor"</button>
+</div>
+
+<script src="js/common.js"></script>
+<script src="js/index.js"></script>
+<script>
+// Add payment confirmation function
+function showPaymentConfirm(price) {
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'payment-overlay';
+
+    // Create modal content
+    const modal = document.createElement('div');
+    modal.className = 'payment-modal';
+    modal.innerHTML = `
+        <h3>Payment Confirmation</h3>
+        <p>Amount: ￥${price}</p>
+        <p>Buyer Account: <span class="copyable" data-copy="kvhmoj3832@sandbox.com">kvhmoj3832@sandbox.com</span></p>
+        <p>Login Password: 111111</p>
+        <p>Payment Password: 111111</p>
+        <div class="modal-buttons">
+            <button class="confirm-btn">Confirm Payment</button>
+            <button class="cancel-btn">Cancel Payment</button>
+        </div>
+    `;
+
+    // Confirm payment handler
+    modal.querySelector('.confirm-btn').addEventListener('click', function() {
+        const form = document.querySelector('form');
+        if (form) form.submit();
+        overlay.remove();
+    });
+
+    // Cancel payment handler
+    modal.querySelector('.cancel-btn').addEventListener('click', function() {
+        document.querySelectorAll('form').forEach(form => form.remove());
+        overlay.remove();
+    });
+
+    // Add copy functionality
+    modal.querySelector('.copyable').addEventListener('click', function() {
+        const textToCopy = this.getAttribute('data-copy');
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            alert('Buyer account copied to clipboard');
+        }).catch(err => {
+            console.error('Unable to copy text: ', err);
+        });
+    });
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Use common config
+    var sPayMallUrl = AppConfig.sPayMallUrl;
+    var groupBuyMarketUrl = AppConfig.groupBuyMarketUrl;
+    var goodsId = AppConfig.goodsId;
+
+    // Get user info
+    var userId = AppUtils.getCurrentUserId();
+    if (!userId) {
+        return;
+    }
+
+    // Request API data
+    fetch(groupBuyMarketUrl + '/api/v1/gbm/index/query_group_buy_market_config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            userId: userId,
+            source: "s01",
+            channel: "c01",
+            goodsId: goodsId
+        })
+    })
+    .then(response => response.json())
+    .then(res => {
+        if(res.code !== '0000') return;
+
+        const { activityId, goods, teamList, teamStatistic } = res.data;
+        const groupList = document.querySelector('.group-list');
+        const promotionText = document.querySelector('.promotion-text');
+
+        // Update promotion info
+        promotionText.textContent = `Direct discount ¥${goods.deductionPrice.toFixed(0)}, ${teamStatistic.allTeamUserCount} more people to grab, join now`;
+
+        // Clear and generate group list
+        groupList.innerHTML = '';
+
+        // Filter teams to show only those with remaining spots > 0
+        const availableTeams = teamList.filter(team => {
+            const remaining = team.targetCount - team.lockCount;
+            return remaining > 0;
+        });
+
+        // Deduplicate teams by teamId to show each team only once
+        const seenTeamIds = new Set();
+        const uniqueTeams = availableTeams.filter(team => {
+            if (seenTeamIds.has(team.teamId)) {
+                return false;
+            }
+            seenTeamIds.add(team.teamId);
+            return true;
+        });
+
+        if (uniqueTeams.length === 0) {
+            groupList.innerHTML = `
+                <div class="group-item empty-tips">
+                    <div class="tips-content">
+                        Hey buddy, hurry up and start a group, be the coolest one! 🎉
+                    </div>
+                </div>
+            `;
+        } else {
+            uniqueTeams.forEach(team => {
+                const remaining = team.targetCount - team.lockCount;
+                // Display team ID instead of userId to avoid duplicate display of same team
+                const teamName = team.teamId.replace(/^TEAM/, 'Team ');
+
+                groupList.innerHTML += `
+                    <div class="group-item" data-remaining="${remaining}">
+                        <div>
+                            <div class="user-info" data-teamId="${team.teamId}" data-activityId="${team.activityId}">${teamName}</div>
+                            <div class="group-status">
+                                <span>Only ${remaining} spots left, group deal ending soon</span>
+                                <span class="countdown">${team.validTimeCountdown}</span>
+                            </div>
+                        </div>
+                        <div class="right">
+                            <button class="group-btn" data-price="${goods.payPrice.toFixed(0)}" data-remaining="${remaining}">Join Group</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Update bottom buttons
+        const buyAloneBtn = document.querySelector('.buy-alone');
+        const groupBuyBtn = document.querySelector('.group-buy');
+        buyAloneBtn.textContent = `Buy Alone (￥${goods.originalPrice.toFixed(0)})`;
+        buyAloneBtn.dataset.price = goods.originalPrice;
+        groupBuyBtn.textContent = `Start Group (￥${goods.payPrice.toFixed(0)})`;
+        groupBuyBtn.dataset.price = goods.payPrice;
+
+        // Bind payment event [Group Buy]
+        document.querySelectorAll('.group-btn, .group-buy').forEach(btn => {
+            btn.addEventListener('click', async function() {
+                const button = this;
+                const price = button.dataset.price;
+
+                // Get group ID and remaining count
+                let teamId = null;
+                let remainingCount = 2; // Default 2 people for new group
+                
+                if (this.classList.contains('group-btn')) {
+                    // Join group
+                    const groupItem = this.closest('.group-item');
+                    const userInfo = groupItem.querySelector('.user-info');
+                    teamId = userInfo.dataset.teamid;
+                    
+                    // Get remaining count from data attribute (direct, no regex needed)
+                    const remaining = parseInt(groupItem.dataset.remaining) || 2;
+                    remainingCount = remaining - 1; // Remaining count -1 after joining
+                    console.log('Remaining count from data attribute:', remaining, 'After joining:', remainingCount);
+                    
+                    // Before joining others' group, delete all pending payment orders and wait for completion
+                    try {
+                        const listResult = await fetch(sPayMallUrl + '/api/v1/alipay/query_user_order_list', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({userId: userId, lastId: null, pageSize: 100})
+                        });
+                        const listData = await listResult.json();
+                        
+                        if (listData.code === '0000' && listData.data && listData.data.orderList) {
+                            const deletePromises = [];
+                            listData.data.orderList.forEach(order => {
+                                if (order.status === 'PAY_WAIT' && order.marketType === 1) {
+                                    console.log('Deleting old order:', order.orderId);
+                                    deletePromises.push(
+                                        fetch(sPayMallUrl + '/api/v1/alipay/refund_order', {
+                                            method: 'POST',
+                                            headers: {'Content-Type': 'application/json'},
+                                            body: JSON.stringify({userId: userId, orderId: order.orderId})
+                                        })
+                                    );
+                                }
+                            });
+                            // Wait for all delete operations to complete
+                            await Promise.all(deletePromises);
+                            console.log('Old orders cleanup completed');
+                        }
+                    } catch (error) {
+                        console.log('Failed to cleanup old orders:', error);
+                    }
+                }
+
+                var url = sPayMallUrl + '/api/v1/alipay/create_pay_order';
+
+                var requestBody = {
+                     userId: userId,
+                     productId: goods.goodsId,
+                     teamId: teamId,
+                     activityId: activityId,
+                     marketType: 1
+                };
+
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody) // 将请求体转换为JSON字符串
+                })
+                .then(response => response.json()) // 解析JSON格式的响应
+                .then(json => {
+                    if (json.code === "0000") { // 假设成功的code是"0000"
+                        // Save remaining count to temp localStorage with userId as key
+                        // Order list will read this value when loading and apply to latest PAY_WAIT order
+                        console.log('Saving remaining count to temp cache:', remainingCount);
+                        localStorage.setItem('latest_team_remaining_' + userId, remainingCount);
+                        localStorage.setItem('latest_team_timestamp_' + userId, Date.now());
+                        
+                        document.querySelectorAll('form').forEach(form => form.remove());
+                        document.body.insertAdjacentHTML('beforeend', json.data);
+                        showPaymentConfirm(price);
+                    } else {
+                        console.error('Error:', json.info); // 输出错误信息
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+
+            });
+        });
+
+        // Bind payment event [Buy Alone]
+        document.querySelectorAll('.buy-alone').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const button = this;
+                const price = button.dataset.price;
+
+                var requestBody = {
+                     userId: userId,
+                     productId: goods.goodsId,
+                     marketType: 0
+                };
+
+                fetch(sPayMallUrl + '/api/v1/alipay/create_pay_order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody) // 将请求体转换为JSON字符串
+                })
+                .then(response => response.json()) // 解析JSON格式的响应
+                .then(json => {
+                    if (json.code === "0000") { // 假设成功的code是"0000"
+                        document.querySelectorAll('form').forEach(form => form.remove());
+                        document.body.insertAdjacentHTML('beforeend', json.data);
+                        showPaymentConfirm(price);
+                    } else {
+                        console.error('Error:', json.info); // 输出错误信息
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            });
+        });
+
+        // Start countdown
+        document.querySelectorAll('.countdown').forEach(el => {
+            new Countdown(el, el.textContent);
+        });
+
+    });
+
+});
+</script>
+
+</body>
+</html>

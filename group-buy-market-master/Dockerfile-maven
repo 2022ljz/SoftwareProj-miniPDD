@@ -1,0 +1,35 @@
+# 使用Maven构建镜像（多阶段构建）
+FROM maven:3.8.4-openjdk-8 AS builder
+
+# 设置工作目录
+WORKDIR /build
+
+# 复制项目文件
+COPY pom.xml .
+COPY group-buy-market-api ./group-buy-market-api
+COPY group-buy-market-app ./group-buy-market-app
+COPY group-buy-market-domain ./group-buy-market-domain
+COPY group-buy-market-infrastructure ./group-buy-market-infrastructure
+COPY group-buy-market-trigger ./group-buy-market-trigger
+COPY group-buy-market-types ./group-buy-market-types
+
+# 使用Maven构建项目
+RUN mvn clean package -DskipTests -Dmaven.test.skip=true
+
+# 运行阶段
+FROM eclipse-temurin:8-jre
+
+# 作者
+MAINTAINER xiaofuge
+
+# 配置
+ENV PARAMS=""
+
+# 时区
+ENV TZ=PRC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# 从构建阶段复制jar文件
+COPY --from=builder /build/group-buy-market-app/target/group-buy-market-app.jar /group-buy-market-app.jar
+
+ENTRYPOINT ["sh","-c","java -jar $JAVA_OPTS /group-buy-market-app.jar $PARAMS"]

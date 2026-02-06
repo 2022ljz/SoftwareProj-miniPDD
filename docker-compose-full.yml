@@ -1,0 +1,164 @@
+version: '3.8'
+# 使用Maven+Docker构建并运行两个后端项目
+# 运行命令: docker-compose -f docker-compose-full.yml up -d
+services:
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0.32
+    container_name: mysql
+    command: 
+      - --default-authentication-plugin=mysql_native_password
+      - --sql-mode=NO_ENGINE_SUBSTITUTION,STRICT_TRANS_TABLES
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    restart: always
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: 123456
+    ports:
+      - "13355:3306"
+    volumes:
+      - ./group-buy-market-master/docs/dev-ops/mysql/sql:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD", "mysqladmin" ,"ping", "-h", "localhost" ]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+    networks:
+      - app-network
+
+  # Redis
+  redis:
+    image: redis:6.2
+    container_name: redis
+    restart: always
+    hostname: redis
+    privileged: true
+    ports:
+      - "16379:6379"
+    volumes:
+      - ./group-buy-market-master/docs/dev-ops/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - app-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3.12.9
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    command: rabbitmq-server
+    volumes:
+      - ./group-buy-market-master/docs/dev-ops/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins
+    networks:
+      - app-network
+
+  # 团购后端 - group-buy-market (端口8091)
+  group-buy-market:
+    build:
+      context: ./group-buy-market-master
+      dockerfile: Dockerfile-maven
+    image: group-buy-market:latest
+    container_name: group-buy-market
+    restart: on-failure
+    ports:
+      - "8091:8091"
+    environment:
+      - TZ=PRC
+      - SPRING_PROFILES_ACTIVE=docker
+      - SERVER_PORT=8091
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=123456
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/group_buy_market?characterEncoding=utf8&autoReconnect=true&serverTimezone=Asia/Shanghai
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
+      - SPRING_RABBITMQ_ADDRESSES=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=admin
+      - SPRING_RABBITMQ_PASSWORD=admin
+      - REDIS_SDK_CONFIG_HOST=redis
+      - REDIS_SDK_CONFIG_PORT=6379
+    volumes:
+      - ./group-buy-market-master/docs/dev-ops/log:/data/log
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # 市场后端 - s-pay-mall (端口8070)
+  s-pay-mall:
+    build:
+      context: ./s-pay-mall-ddd-market-master
+      dockerfile: Dockerfile-maven
+    image: s-pay-mall:latest
+    container_name: s-pay-mall
+    restart: on-failure
+    ports:
+      - "8070:8070"
+    environment:
+      - TZ=PRC
+      - SPRING_PROFILES_ACTIVE=docker
+      - SERVER_PORT=8070
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=123456
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/s-pay-mall-ddd-market?characterEncoding=utf8&autoReconnect=true&serverTimezone=Asia/Shanghai
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
+      - SPRING_RABBITMQ_ADDRESSES=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=admin
+      - SPRING_RABBITMQ_PASSWORD=admin
+      - REDIS_SDK_CONFIG_HOST=redis
+      - REDIS_SDK_CONFIG_PORT=6379
+    volumes:
+      - ./s-pay-mall-ddd-market-master/docs/dev-ops/log:/data/log
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Nginx前端
+  nginx:
+    image: nginx:1.25.1
+    container_name: nginx
+    restart: always
+    ports:
+      - '80:80'
+    volumes:
+      - ./s-pay-mall-ddd-market-master/docs/dev-ops/nginx/html:/usr/share/nginx/html
+    depends_on:
+      - group-buy-market
+      - s-pay-mall
+    privileged: true
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
